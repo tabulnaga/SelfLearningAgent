@@ -1,0 +1,12 @@
+[
+  {"q": "What should we investigate first when payments are stuck in pending?", "expect": "RB-PAY-001"},
+  {"q": "In what order do I troubleshoot a payment pending incident?", "expect": "RB-PAY-001"},
+  {"q": "Can I manually retry a payment that is still pending?", "expect": "POL-PAY-004"},
+  {"q": "How many times may a failed payment be retried?", "expect": "POL-PAY-004"},
+  {"q": "How do I restart the payment-events Kafka consumer?", "expect": "OPS-KAFKA-002"},
+  {"q": "When is a consumer considered healthy? What lag is acceptable?", "expect": "OPS-KAFKA-002"},
+  {"q": "The consumer stalled again right after a restart, what now?", "expect": "OPS-KAFKA-002"},
+  {"q": "When must a payments incident be escalated to L2?", "expect": "POL-PAY-009"},
+  {"q": "What information must an escalation to the Payments Platform team include?", "expect": "POL-PAY-009"},
+  {"q": "How long does a card refund take?", "expect": "FAQ-REF-001"}
+]

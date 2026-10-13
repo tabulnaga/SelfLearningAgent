@@ -1,0 +1,46 @@
+{
+  "description": "Spec §27 scenario. Each case: reset the simulated platform, the engineer describes the problem to the agent, an operator runs tools on the case, then the case is resolved with an outcome note. Cases 1-3 share a pattern that Hindsight should consolidate into one observation. The noise case must be skipped by the Memory Writer (rule R1).",
+  "cases": [
+    {
+      "name": "case-1",
+      "sim": {"stalled": true, "pending": 4},
+      "messages": ["Customers report payments stuck in Pending for about 10 minutes. What should I check?"],
+      "operator_tools": [
+        {"name": "check_consumer_status", "arguments": {"consumer": "payment-events"}},
+        {"name": "retry_payment", "arguments": {"payment_id": "PAY-1000"}},
+        {"name": "restart_consumer", "arguments": {"consumer": "payment-events"}}
+      ],
+      "resolve_note": "Root cause: the Kafka payment-events consumer had stopped processing payment events (state stalled, lag 1840). Retrying a payment failed because the original request was still pending. Restarting the payment consumer restored processing and all pending payments completed."
+    },
+    {
+      "name": "case-2",
+      "sim": {"stalled": true, "pending": 2},
+      "messages": ["Payment Pending alerts firing again in production, several payments not completing."],
+      "operator_tools": [
+        {"name": "list_pending_payments", "arguments": {"limit": 10}},
+        {"name": "check_consumer_status", "arguments": {"consumer": "payment-events"}},
+        {"name": "restart_consumer", "arguments": {"consumer": "payment-events"}}
+      ],
+      "resolve_note": "Same symptoms as before: payment-events consumer stalled with growing lag. Restarting the consumer resolved it; pending payments completed within a minute."
+    },
+    {
+      "name": "case-3",
+      "sim": {"stalled": true, "pending": 6},
+      "messages": ["We have payments in Pending status that are not moving. Lag alert on the payments topic too."],
+      "operator_tools": [
+        {"name": "check_consumer_status", "arguments": {"consumer": "payment-events"}},
+        {"name": "restart_consumer", "arguments": {"consumer": "payment-events"}},
+        {"name": "list_pending_payments", "arguments": {"limit": 10}}
+      ],
+      "resolve_note": "Payment-events consumer stalled again. Restart of the consumer fixed it; no pending payments remain."
+    },
+    {
+      "name": "noise-greeting",
+      "sim": {"stalled": false, "pending": 0},
+      "messages": ["hello"],
+      "operator_tools": [],
+      "resolve_note": null
+    }
+  ],
+  "new_session_question": "We have another Payment Pending incident. What should we investigate first?"
+}

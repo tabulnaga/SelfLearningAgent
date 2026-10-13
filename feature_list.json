@@ -1,0 +1,68 @@
+{
+  "project": "self-learning-agentic-rag",
+  "last_updated": "2026-10-04",
+  "rules": {
+    "single_active_feature": true,
+    "passing_requires_evidence": true,
+    "do_not_skip_verification": true
+  },
+  "status_legend": {
+    "not_started": "Work has not begun.",
+    "in_progress": "Code exists; required verification has not passed yet.",
+    "blocked": "Cannot continue until a documented blocker is resolved.",
+    "passing": "Required verification has passed and evidence is recorded."
+  },
+  "features": [
+    {
+      "id": "p1-reference-analysis", "phase": 1, "title": "Reference repository study",
+      "status": "passing",
+      "verification": ["docs/reference-analysis.md exists and was approved by the user"],
+      "evidence": ["User approved architecture with defaults on 2026-10-04 (D1: Opus 5.5)"]
+    },
+    {
+      "id": "p2-architecture", "phase": 2, "title": "Architecture",
+      "status": "passing",
+      "verification": ["docs/architecture.md approved"],
+      "evidence": ["Approved 2026-10-04"]
+    },
+    {
+      "id": "p3a-skeleton", "phase": 3, "title": "Config, DB, migrations, compose, health, logging",
+      "status": "blocked",
+      "verification": ["docker compose up -d --build -> all services healthy", "GET /health/ready -> 200"],
+      "evidence": ["Unit tests pass (30)", "Entry points import cleanly"],
+      "notes": "Blocked 2026-10-04: Docker Desktop engine stopped responding (vmmemWSL ~13 GB); stack never started."
+    },
+    {
+      "id": "p3b-rag", "phase": 3, "title": "Ingestion + hybrid retrieval + rerank",
+      "status": "in_progress",
+      "verification": ["tests/unit/test_rag_units.py", "pytest -m integration: retrieval tests",
+                       "eval1 recall@5 >= 0.9, MRR >= 0.7 with FastEmbed + cross-encoder"],
+      "evidence": ["Unit tests pass"]
+    },
+    {
+      "id": "p3c-vertical-slice", "phase": 3, "title": "Session -> RAG -> recall -> LLM -> verify -> respond -> state",
+      "status": "in_progress",
+      "verification": ["tests/integration/test_vertical_slice.py (vertical slice + failure paths)"],
+      "evidence": ["Verifier + renderer unit tests pass"]
+    },
+    {
+      "id": "p4-learning-loop", "phase": 4, "title": "Closure -> Memory Writer -> retain -> observations -> pages",
+      "status": "in_progress",
+      "verification": ["integration learning-loop tests", "pytest -m live: evals 2, 6, 7"],
+      "evidence": ["Memory Writer unit tests pass (retention, idempotency keys, stable tags)"]
+    },
+    {
+      "id": "p5-reliability", "phase": 5, "title": "Idempotency, retries, leases, degradation, health",
+      "status": "in_progress",
+      "verification": ["integration failure-path tests (memory down, LLM down, unverifiable answer, retry dedupe)"],
+      "evidence": []
+    },
+    {
+      "id": "p6-evaluation", "phase": 6, "title": "Seven POC evals + end-to-end demo",
+      "status": "not_started",
+      "verification": ["pytest -m integration tests/evals (1,3,4,5)", "pytest -m live tests/evals (2,6,7)",
+                       "python -m scripts.demo_poc"],
+      "evidence": []
+    }
+  ]
+}

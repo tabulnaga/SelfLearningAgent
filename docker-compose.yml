@@ -1,0 +1,98 @@
+# Local environment (spec §24): Agent API + worker + Hindsight + one Postgres (two databases).
+#   docker compose up -d --build
+# Needs ANTHROPIC_API_KEY in .env (see .env.example).
+
+x-app-env: &app-env
+  APP_ENV: ${APP_ENV:-sim}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  API_KEYS: ${API_KEYS:-}
+  DATABASE_URL: postgresql://agent:agent@db:5432/agent
+  HINDSIGHT_URL: http://hindsight:8888
+  HINDSIGHT_BANK_ID: ${HINDSIGHT_BANK_ID:-support-ops}
+  HINDSIGHT_ENABLED: ${HINDSIGHT_ENABLED:-true}
+  LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+  LLM_MODEL: ${LLM_MODEL:-claude-opus-5-5}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  SESSION_TIMEOUT_MINUTES: ${SESSION_TIMEOUT_MINUTES:-30}
+  MONITOR_INTERVAL_S: ${MONITOR_INTERVAL_S:-30}
+  RETAIN_ASYNC: ${RETAIN_ASYNC:-true}
+  RAG_TOP_K: ${RAG_TOP_K:-8}
+  RERANK_TOP_K: ${RERANK_TOP_K:-5}
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: agent
+      POSTGRES_DB: agent
+    ports: ["${DB_PORT:-5432}:5432"]
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent -d agent && pg_isready -U hindsight -d hindsight"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  hindsight:
+    image: ghcr.io/vectorize-io/hindsight:${HINDSIGHT_VERSION:-0.10.2}
+    depends_on:
+      db: {condition: service_healthy}
+    environment:
+      HINDSIGHT_API_DATABASE_URL: postgresql://hindsight:hindsight@db:5432/hindsight
+      HINDSIGHT_API_LLM_PROVIDER: ${HINDSIGHT_LLM_PROVIDER:-anthropic}
+      HINDSIGHT_API_LLM_API_KEY: ${ANTHROPIC_API_KEY:-}
+      HINDSIGHT_API_LLM_MODEL: ${HINDSIGHT_LLM_MODEL:-claude-opus-5-5}
+      # Reflect (also builds knowledge pages / mental models) forces named tool calls, which
+      # claude-opus-5-5 rejects; it runs on Hindsight's own Anthropic default instead.
+      HINDSIGHT_API_REFLECT_LLM_PROVIDER: ${HINDSIGHT_LLM_PROVIDER:-anthropic}
+      HINDSIGHT_API_REFLECT_LLM_API_KEY: ${ANTHROPIC_API_KEY:-}
+      HINDSIGHT_API_REFLECT_LLM_MODEL: ${HINDSIGHT_REFLECT_LLM_MODEL:-claude-haiku-4-5}
+      HINDSIGHT_API_LOG_LEVEL: ${HINDSIGHT_LOG_LEVEL:-info}
+    ports:
+      - "${HINDSIGHT_PORT:-8888}:8888"   # API
+      - "${HINDSIGHT_UI_PORT:-9999}:9999" # control plane: watch facts/observations/pages form
+    volumes:
+      - hindsight_models:/home/hindsight/.cache
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8888/health/ready')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 60s
+
+  api:
+    build: .
+    depends_on:
+      db: {condition: service_healthy}
+      hindsight: {condition: service_started}
+    environment: *app-env
+    command: >
+      sh -c "python -m app.db.migrate &&
+             python -m scripts.ingest --dir data/docs &&
+             uvicorn app.api.main:app --host 0.0.0.0 --port 8000"
+    ports: ["${API_PORT:-8000}:8000"]
+    volumes:
+      - app_models:/models
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8000/health/live')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  worker:
+    build: .
+    depends_on:
+      api: {condition: service_healthy}
+    environment: *app-env
+    command: ["python", "-m", "workers"]
+    volumes:
+      - app_models:/models
+
+volumes:
+  pg_data:
+  hindsight_models:
+  app_models:
